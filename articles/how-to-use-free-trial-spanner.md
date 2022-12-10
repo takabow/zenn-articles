@@ -13,13 +13,13 @@ published: true
 
 こんにちは、Google Cloud でデータベース系を担当している佐藤です。
 
-本記事では Cloud Spanner に興味がある方に、無料トライアル インスタンスを使ってサクッと触ってもらう手順を紹介します。
+本記事では Cloud Spanner に興味がある方に、Cloud Spanner を無料で試せるトライアル インスタンスを使ってサクッと触ってもらう手順を紹介します。
 
 本手順は以下のドキュメントをより丁寧に紹介した内容です。
 
 https://cloud.google.com/spanner/docs/free-trial-quickstart?hl=ja
 
-## そもそも Cloud Spanner って何だっけ？
+## Cloud Spanner って何だっけ？
 [Cloud Spanner](https://cloud.google.com/spanner?hl=ja)、名前こそ聞くものの、その実態が何なのか知らない方も多いかもしれません。何ならリレーショナル DB だってことを知らない人もいると聞いたので、簡単に紹介したいと思います。
 
 Cloud Spanner の特徴をあげろと言われたら、僕はよくこの 3 つをあげています。
@@ -31,7 +31,7 @@ Cloud Spanner の特徴をあげろと言われたら、僕はよくこの 3 つ
 
 どんな使われ方しているかというと、自前でシャーディングする必要がなくなるので、手動シャーディング運用をしたくない方がよく使われてます。シャードのマージも自動で行ってくれるので、スケールアウトだけでなくスケールインもできちゃいます。可用性についてはほんとうにダウンタイムがない（DB の再起動みたいな運用が一切不要）ので、性能は特に困ってないのだけど、とにかくダウンタイムを限りなく無くしたいという方も使われていますね。
 
-# Cloud Spanner の無料トライアル インスタンス
+# 無料トライアル インスタンスとは
 ## 無料トライアル インスタンスの登場
 Cloud Spanner に興味がある人はたくさんいると思うのですが、ちょっと試してみたいとき、特に個人で独学で勉強しようと思った時、価格的にお試しするハードルが高かったのも事実です。その後インスタンスの最小単位が小さくなり、[0.1 ノードで月 65 ドル程度から使えるようになった](https://cloud.google.com/blog/ja/products/databases/get-more-out-of-spanner-with-granular-instance-sizing)とはいえ、ちょっと試してみたい個人には避けたい出費です。
 
@@ -43,7 +43,7 @@ Cloud Spanner に興味がある人はたくさんいると思うのですが、
 Cloud Spanner 1 インスタンスを 90 日間無料で試せるというものになります。お試し用なのでインスタンス サイズは小さいですが、それでも 10 GB のストレージがつきますし、十分活用できるものになっています。
 
 
-## 無料トライアル インスタンスの注意点と制限事項
+## 注意点と制限事項
 > The free trial instance is intended to help you learn and explore Spanner.
 
 無料トライアル インスタンスは、主に Cloud Spanner のコンセプトなどを学んで貰うための学習用途が想定されています。また性能測定を想定して作られていません（小さい処理性能しかありません）。あまり強い負荷を書けないように注意してください。Cloud Spanner は強い負荷がかかると、[リクエストをクライアント側にプッシュバック](https://cloud.google.com/spanner/docs/bulk-loading?hl=ja#pushback)します。
@@ -60,11 +60,11 @@ Cloud Spanner 1 インスタンスを 90 日間無料で試せるというもの
 
 
 
-# 実際に無料トライアル インスタンスを試してみる
+# 無料トライアル インスタンスを試す
 今回は僕の個人アカウントで試してみました。
 
 
-## 無料トライアル インスタンスの作成準備
+## インスタンスの作成準備
 まず無料トライアル インスタンスを試すための Google Cloud のプロジェクトを用意してください。もし今回 Google Cloud を触るのが初めてという方は、[こちらの記事](https://zenn.dev/google_cloud_jp/articles/8cbf93f7a4c7c1#google-cloud-%E7%84%A1%E6%96%99%E3%83%88%E3%83%A9%E3%82%A4%E3%82%A2%E3%83%AB-%E3%81%B8%E3%81%AE%E7%99%BB%E9%8C%B2)で最初のやり方が紹介されています。
 
 今回は新規に用意しています。既存のものを使っても構いません。ただし **無料トライアル インスタンスは 1 プロジェクトごとに 1 回しかつくることができない** ことに注意してください。気になるなら、新規プロジェクトを作ってしまったほうがいいでしょう。
@@ -111,7 +111,7 @@ Cloud Spanner 1 インスタンスを 90 日間無料で試せるというもの
 ![](/images/articles/how-to-use-free-trial-spanner/how-to-start04.png)
 *インスタンス作成完了*
 
-# データベースを使ってみる（チュートリアル）
+# DB 作成のチュートリアル紹介
 
 無料トライアル インスタンスで試すためのチュートリアルが用意されています。`チュートリアルを起動する` ボタンをクリックすると、Cloud Console の右側にチュートリアル画面が起動します。そのままそのチュートリアルの手順にそってもらってもいいのですが、本記事ではそのチュートリアルの内容を少し補足しながら紹介したいと思います。
 
@@ -173,6 +173,14 @@ Enter authorization code:
 
 ![](/images/articles/how-to-use-free-trial-spanner/tutorial05.png)
 *gcloud auth application-default login の諸々が完了した画面*
+
+初めて触る Google Cloud プロジェクトで実行した場合、以下のように表示されるかもしれません。Google Cloud では各種サービス用の API は標準では無効化されていて、必要に応じて有効化していく仕組みになっています。 `cloudresourcemanager.googleapis.com` という API を今回利用する必要があるのですがこれを有効にしますかと聞かれています。デフォルトが `N` になってるので、うっかり Enter を連打せずに `Y` と入力してから次へ進んでください。
+
+```
+These credentials will be used by any library that requests Application Default Credentials (ADC).
+API [cloudresourcemanager.googleapis.com] not enabled on project [あなたのプロジェクト番号]. Would you like to enable and retry (this will take a few
+minutes)? (y/N)?
+```
 
 ## サンプル アプリケーションの初期設定
 

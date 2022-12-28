@@ -19,13 +19,13 @@ published: true
 本記事では以下の内容が書かれています。今回は Cloud Spanner 用のアプリケーションの話で例示していますが、gRPC を使う他のアプリにも応用ができる内容になっています。
 
 **本記事の内容**
-- アプリケーションが Cloud Spanner へ投げる SQL および mutation とパラメータは、gRPC レイヤーでまとめて取得することができる
+- **アプリケーションが Cloud Spanner へ投げる SQL および mutation とパラメータは、gRPC レイヤーでまとめて取得することができる**
 - gRPC には Interceptor という、各 RPC のリクエストごとに任意の処理を割り込ませる仕組みがある
 - Interceptor で Cloud Spanner 用のアプリが発行している SQL とパラメータを取得して、そのままログに吐き出す（Cloud Logging に送るなど）ことができる
 - Cloud Logging と Log Analytics (Preview) を活用し、アプリが投げてる SQL および mutation とパラメータを簡単に可視化できる
 
 ![](/images/articles/how-to-intercept-sqls-and-params/log-analytics02.png)
-*アプリが投げている SQL、mutationo、パラメータを可視化*
+*アプリが投げている SQL、mutation、パラメータを可視化*
 
 **本記事で登場する製品やキーワード**
 - Go 言語

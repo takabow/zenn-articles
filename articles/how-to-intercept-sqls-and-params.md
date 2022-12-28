@@ -2,7 +2,7 @@
 title: "Cloud Spanner の SQL ログを gRPC レイヤーで取得する方法"
 emoji: "🔧"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: [cloudspanner, spanner, googlecloud, gcp, database]
+topics: [cloudspanner, spanner, googlecloud, gcp, grpc]
 publication_name: "google_cloud_jp"
 published: true
 ---
@@ -19,10 +19,13 @@ published: true
 本記事では以下の内容が書かれています。今回は Cloud Spanner 用のアプリケーションの話で例示していますが、gRPC を使う他のアプリにも応用ができる内容になっています。
 
 **本記事の内容**
-- アプリケーションが Cloud Spanner へ投げる SQL 及び mutation とパラメータは、gRPC レイヤーでまとめて取得することができる
+- アプリケーションが Cloud Spanner へ投げる SQL および mutation とパラメータは、gRPC レイヤーでまとめて取得することができる
 - gRPC には Interceptor という、各 RPC のリクエストごとに任意の処理を割り込ませる仕組みがある
 - Interceptor で Cloud Spanner 用のアプリが発行している SQL とパラメータを取得して、そのままログに吐き出す（Cloud Logging に送るなど）ことができる
-- Cloud Logging と Log Analytics (Preview) を活用し、アプリが投げてる SQL 及び　mutation とパラメータを簡単に可視化できる
+- Cloud Logging と Log Analytics (Preview) を活用し、アプリが投げてる SQL および mutation とパラメータを簡単に可視化できる
+
+![](/images/articles/how-to-intercept-sqls-and-params/log-analytics02.png)
+*アプリが投げている SQL、mutationo、パラメータを可視化*
 
 **本記事で登場する製品やキーワード**
 - Go 言語
@@ -32,9 +35,9 @@ published: true
 - Log Analytics
 
 ## この記事のきっかけ
-Cloud Spanner に接続しているアプリの改修で、「Cloud Spanner に対して発行してる SQL 及び mutation とそのパラメータ（WHERE 句の条件とかの実際の値）をログできるようにしてほしい」と言われたら、どのように実装しますか？ぱっと思いつく方法としては、実際にクエリ投げてるところでログを取れば行けそうですね。
+Cloud Spanner に接続しているアプリの改修で、「Cloud Spanner に対して発行してる SQL および mutation とそのパラメータ（WHERE 句の条件とかの実際の値）をログできるようにしてほしい」と言われたら、どのように実装しますか？ぱっと思いつく方法としては、実際にクエリ投げてるところでログを取れば行けそうですね。
 
-例えばアプリから[パラメータ付きの SELECT](https://cloud.google.com/spanner/docs/samples/spanner-query-with-parameter?hl=ja)を投げる場合は、Go 言語では以下のように記述します。少なくともコード上ではここに SQL テキストと、実際のパラメータの中身があるので、これを任意の方法でログれば良さそうに感じます。
+たとえばアプリから[パラメータ付きの SELECT](https://cloud.google.com/spanner/docs/samples/spanner-query-with-parameter?hl=ja)を投げる場合は、Go 言語では以下のように記述します。少なくともコード上ではここに SQL テキストと、実際のパラメータの中身があるので、これを任意の方法でログれば良さそうに感じます。
 
 ```go: アプリから Cloud Spanner へパラメータ付きの SELECT を
 stmt := spanner.Statement{
@@ -56,9 +59,9 @@ iter := client.Single().Query(ctx, stmt)
 
 # Cloud Spanner と gRPC
 ## Cloud Spanner は通信に gRPC を利用している
-自分は（現職ではなく）昔も似たよう場面に出くわしました。その時は、アプリが発行してる SQL のうち、特定の条件に合致するものを収集するような処理が必要とされた場面でした。しかしアプリは C 言語で書かれており、アプリ自体に改修を入れることは NG でした。そのためアプリが使っていた DB 接続用ライブラリで SQL をフックして SQL テキストとパラメータを取得したことがありました。
+自分は（現職ではなく）昔も似たような場面に出くわしました。その時は、アプリが発行してる SQL のうち、特定の条件に合致するものを収集するような処理が必要とされた場面でした。しかしアプリは C 言語で書かれており、アプリ自体に改修を入れることは NG でした。そのためアプリが使っていた DB 接続用ライブラリで SQL をフックして SQL テキストとパラメータを取得したことがありました。
 
-Cloud Spanner はどうでしょうか？Cloud Spanner 用のアプリは、各種クライアント ライブラリを利用しています。さらに言えばどのクライアント ライブラリも **gRPC を共通して使っています**。gRPC レイヤーでなんとかできないでしょうか？そう、丁度いい仕組みがあるんです。それが今回利用する gRPC Interceptor です。
+Cloud Spanner はどうでしょうか？Cloud Spanner 用のアプリは、各種クライアント ライブラリを利用しています。さらに言えばどのクライアント ライブラリも **gRPC を共通して使っています**。gRPC レイヤーでなんとかできないでしょうか？そう、ちょうどいい仕組みがあるんです。それが今回利用する gRPC Interceptor です。
 
 
 
@@ -104,7 +107,7 @@ Unary RPC 用の Interceptor と Streaming RPC 用の Interceptor で、上記�
 
 また、本記事で紹介する手法は、SQL や Mutation に含まれる実際のパラメータをログに取ることが可能になります。PII（個人を特定できる情報）などが含まれうる情報の記録については、必ず所属する組織のポリシーやアプリケーションの要件を確認することを強く推奨します。
 
-Cloud DLP を利用した機密情報補語方法の例が[こちらのブログ](https://medium.com/google-cloud/protect-sensitive-info-in-logs-using-google-cloud-4548211d4654)にあります。
+Cloud DLP を利用した機密情報保護方法の例が[こちらのブログ](https://medium.com/google-cloud/protect-sensitive-info-in-logs-using-google-cloud-4548211d4654)にあります。
 :::
 
 ## 今回利用する仕組みの概要図
@@ -130,7 +133,7 @@ cd golang-samples/spanner/spanner_snippets
 
 https://cloud.google.com/spanner/docs/getting-started/go?hl=ja
 
-先程 `git clone` したあと、spanner_snippets というディレクトリに移動しています。以降このディレクトリで操作を行います。
+さきほど `git clone` したあと、spanner_snippets というディレクトリに移動しています。以降このディレクトリで操作を行います。
 
 ```shell:利用するサンプルアプリのディレクトリ構造
 golang-samples
@@ -192,7 +195,7 @@ go run snippet.go querywithparameter projects/${PROJECT_ID}/instances/${INSTANCE
 ```
 ## サンプルアプリに gRPC Interceptor を仕込む
 
-さてここからが本題です。gRPC Interceptor の処理はどのようなコードを書けばいいのでしょうか？**まずは手っ取り早く試してもらうために、[こちらに](https://raw.githubusercontent.com/takabow/zenn-articles/main/src/articles/how-to-intercept-sqls-and-params/logging.go) `snippet.go` に簡単に gRPC Interceptor を組み込める `logging.go` という名前のサンプルコードを用意しておきました！**
+さてここからが本題です。gRPC Interceptor の処理はどのようなコードを書けばいいのでしょうか？**まずは手っ取り早く試してもらうために、`snippet.go` に対して簡単に gRPC Interceptor を組み込める `logging.go` という名前の[サンプルコード](https://raw.githubusercontent.com/takabow/zenn-articles/main/src/articles/how-to-intercept-sqls-and-params/logging.go)を用意しておきました！**
 
 今いるディレクトリで以下の `wget` を実行して、[logging.go](ttps://raw.githubusercontent.com/takabow/zenn-articles/main/src/articles/how-to-intercept-sqls-and-params/logging.go) というファイルをダウンロードします。今回の記事用に用意したシンプルなサンプルコードとなっています。
 
@@ -241,7 +244,7 @@ main 関数のなかで最初に Cloud Logging の初期化と終了処理が必
 
 ### snippet.go の修正（createClients 関数）
 
-次に、createClients 関数を修正し、gRPC Interceptor 用の関数をセットした opts を Cloud Spanner クライアントに渡せるようにします。ダウンロードした `logging.go` の中にある `getInterceptOpts()` 関数が opts を返してくれるます。spanner.NewClient の第 3 引数に `getInterceptOpts(ctx)...` を追加するように修正します。これで完成です。
+次に、createClients 関数を修正し、gRPC Interceptor 用の関数をセットした opts を Cloud Spanner クライアントへ渡せるようにします。ダウンロードした `logging.go` の中にある `getInterceptOpts()` 関数が opts を返してくれるます。spanner.NewClient の第 3 引数に `getInterceptOpts(ctx)...` を追加するように修正します。これで完成です。
 
 ```diff go:snippet.go - createClients()
 func createClients(ctx context.Context, db string) (*database.DatabaseAdminClient, *spanner.Client) {
@@ -274,7 +277,7 @@ go run snippet.go logging.go querywithparameter projects/${PROJECT_ID}/instances
 ```
 
 以下のような結果が出るはずです。
-`[/google.spanner.v1.Spanner/ExecuteStreamingSql]` と出力されていますね。これが実際に SQL を Cloud Spanner に渡しているリクエストです。後ほど解説しますが、今回 gRPC Interceptor の中で、投げられたリクエストのメソッド名をこのように標準出力に出すようにしています。またリクエストに含まれるメッセージについては Cloud Logging に送られています。
+`[/google.spanner.v1.Spanner/ExecuteStreamingSql]` と出力されていますね。これが実際に SQL を Cloud Spanner に渡しているリクエストです。後ほど解説しますが、今回 gRPC Interceptor を用いて、Cloud Spanner へと投げられたリクエストのメソッド名を標準出力へと出すようにしています。またリクエストに含まれるメッセージについては Cloud Logging に送られています。
 
 ```shell: gRPC Interceptor によリ ExecuteStreamingSql クエストが取り出された
 [/google.spanner.v1.Spanner/BatchCreateSessions]
@@ -299,7 +302,7 @@ go run snippet.go logging.go querywithparameter projects/${PROJECT_ID}/instances
 SELECT 文を実行してるだけのはずが、大量の `BeginTransaction` が発行されている様子が見えたりすると思います。BeginTransaction といえばトランザクションの開始時に投げられるリクエストです。SELECT しかしてないはずなのになぜでしょうか？Cloud Spanner のクライアント ライブラリが自動で作るセッション プールでは、書き込み用のセッションというものを用意しており、そちらは最初に BeginTransaction まで投げていつでもトランザクションを開始できる状態にしているのです。詳細は[こちらの記事](https://medium.com/google-cloud-jp/%E8%A9%B3%E8%A7%A3-google-cloud-go-spanner-%E3%82%BB%E3%83%83%E3%82%B7%E3%83%A7%E3%83%B3%E7%AE%A1%E7%90%86%E7%B7%A8-d805750edc75)が詳しいです。
 :::
 
-gRPC のメソッドごとにリクエストに割り込みをかけて中身を出力することに成功したようです！
+gRPC のリクエストに割り込みをかけ、gRPC のメソッドを出力することに成功したようです！
 
 
 次に snippet.go で `write` を実行してみましょう。これは内部では InsertOrUpdate の mutation を実行してます。
@@ -318,12 +321,12 @@ go run snippet.go logging.go write projects/${PROJECT_ID}/instances/${INSTANCE_I
 
 ## Cloud Logging で SQL テキストとパラメータの閲覧
 
-今回はリクエスト内のメッセージを Cloud Logging に送っていたので Cloud Logging を見てみましょう。Message や Method の文字列が入ったログが記録されているのが見えると思います。これが各 gRPC リクエストの情報になります。
+今回はリクエスト内のメッセージを Cloud Logging に送っていたので Cloud Logging を見てみましょう。Message や Method の文字列を含むログが記録されていると思います。これが各 gRPC リクエストの情報になります。
 
 ![](/images/articles/how-to-intercept-sqls-and-params/cloud-logging01.png)
 *Cloud Logging に送られた gRPC の Message*
 
-今回 snippet.go で SELECT を実行しているはずなので、ExecuteStreamingSql のログを探して見ると、しっかりとログが記録されていますね。Cloud Logging は構造化ログといって、ログの構造を維持したまま扱うことができる仕組みがあります。今回は [gRPC のリクエストで送られるメッセージの構造(proto)](https://cloud.google.com/spanner/docs/reference/rest/v1/projects.instances.databases.sessions/executeStreamingSql#request-body)をそのまま記録しています。メッセージの内容は Cloud Logging 上で `jsonPayload` という形で、JSON 形式で扱うことができます。
+今回 snippet.go で SELECT を実行しているはずなので、ExecuteStreamingSql のログを探して見ると、しっかりとログが記録されていますね。構造化ログといって、Cloud Logging にはログの構造を維持したまま記録する仕組みがあります。今回は [gRPC のリクエストで送られるメッセージの構造(proto)](https://cloud.google.com/spanner/docs/reference/rest/v1/projects.instances.databases.sessions/executeStreamingSql#request-body)をそのまま記録しています。メッセージの内容は Cloud Logging 上で `jsonPayload` という形で、JSON 形式で扱うことができます。
 
 ![](/images/articles/how-to-intercept-sqls-and-params/cloud-logging-sql-params.png)
 *SQL とパラメータが記録されている*
@@ -337,7 +340,7 @@ go run snippet.go logging.go write projects/${PROJECT_ID}/instances/${INSTANCE_I
 
 ### ログバケットとシンクの作成
 
-さてログが取れてることがわかったので、今回のログだけを保存するログバケットを作って、そこにログを集めてみましょう。以下の内容で新しくログバケットとシンクを作成します。
+さてログが取得できているとわかったので、今回のログだけを保存するログバケットを作って、そこにログを集めてみましょう。以下の内容で新しくログバケットとシンクを作成します。
 
 - ログシンク名：`spanner-sql-log-sink`
 - シンク宛先：
@@ -368,7 +371,7 @@ go run snippet.go logging.go write projects/${PROJECT_ID}/instances/${INSTANCE_I
 go run snippet.go logging.go dmlwritetxn projects/${PROJECT_ID}/instances/${INSTANCE_ID}/databases/${DB_NAME}
 ```
 
-[Log Analytics](https://cloud.google.com/blog/ja/products/devops-sre/introducing-cloud-loggings-log-analytics-powered-by-big-query?hl=ja) という SQL をつかって Cloud Logging のログを柔軟に検索できる機能（2022 年 12 月現在プレビュー版）があります。これを使うと先程のログを更に見やすく簡単に整形できてしまいます。今回 gRPC Interceptor では、メッセージをそのままの構造で送ってきています。先程 JsonPayload 見たとおり、複雑な JSON 構造をしています。これを Log Analytics で見やすく整形してみましょう。
+[Log Analytics](https://cloud.google.com/blog/ja/products/devops-sre/introducing-cloud-loggings-log-analytics-powered-by-big-query?hl=ja) という SQL をつかって Cloud Logging のログを柔軟に検索できる機能（2022 年 12 月現在プレビュー版）があります。これを使うとさきほどのログをさらに見やすく簡単に整形できてしまいます。今回のサンプルコード内の gRPC Interceptor では、gRPC のメッセージをそのままの構造で Cloud Logging へ送っています。Cloud Logging 側の JsonPayload を見たとおり、複雑な JSON 構造をしていることがわかりますね。このままではいちいち JSON のネスト構造を開いていかないといけないため、これを Log Analytics で見やすく整形してみましょう。
 
 Cloud Logging の左のメニューから Log Anlytics を選択してください。
 ![](/images/articles/how-to-intercept-sqls-and-params/log-analytics01.png)
@@ -410,7 +413,7 @@ WHERE method in ('ExecuteStreamingSql','ExecuteSql','Commit')
 ORDER BY timestamp, sql_or_mutation
 ```
 
-以下が結果です！先程実行した 3 つのコマンドについて、 SQL テキストだけでなく、mutation や パラメータまで全て取得できています。Log Analytics を使えば、複雑な構造化ログをこんなに簡単整形できちゃうのです。もちろん今回のケースでは gRPC Interceptor 側である程度分かりきってる部分については前処理してから Cloud Logging に送ってもいいのですが、今回はあえて Log Analytics でやってみました。
+以下が結果です！さきほど実行した 3 つのコマンドについて、 SQL テキストだけでなく、mutation や パラメータまですべて取得できています。Log Analytics を使えば、複雑な構造化ログをこんなに簡単整形できちゃうのです。もちろん今回のケースでは gRPC Interceptor 側である程度分かりきってる部分については前処理してから Cloud Logging に送ってもいいのですが、今回はあえて Log Analytics でやってみました。
 ![](/images/articles/how-to-intercept-sqls-and-params/log-analytics02.png)
 *Log Analytics で SQL とパラメータを表示してみた*
 
@@ -457,7 +460,7 @@ https://pkg.go.dev/google.golang.org/grpc#UnaryClientInterceptor
 
 ## Streaming RPC の Intercept 処理
 
-Streaming RPC (ExecuteStreamingSql リクエストなど）をフックする処理をここで書きます。ストリーム処理なので、実際にはリクエストやレスポンスの処理が複数回呼び出される可能性があります。`SendMsg` や `RecvMsg` が実際にそれぞれでの割り込み処理を書く部分です。今回は `ExecuteStreamingSql` リクエスト時の SQL を記録したいので、レスポンスが返ってきたときに記録することにします。なおレスポンスは複数回呼び出されるため、最初の 1 回のみログを取るようにしています。
+Streaming RPC (ExecuteStreamingSql リクエストなど）をフックする処理をここで書きます。ストリーム処理なので、実際にはリクエストやレスポンスの処理が、複数回呼び出される可能性があります。`SendMsg` や `RecvMsg` が実際にそれぞれでの割り込み処理を書く部分です。今回は `ExecuteStreamingSql` リクエスト時の SQL を記録したいので、レスポンスが返ってきたときに記録することとします。なおレスポンスは複数回呼び出されるため、最初の 1 回のみログを取るようにしています。
 
 今回はリクエストの送信後に、送ったリクエストの中身の Message を記録するような処理を入れています。
 
@@ -541,7 +544,7 @@ func (exporter *sampleExporter) logMessage(method string, msg proto.Message) {
 
 ## 今後の応用
 
-今回はシンプルに全てのリクエストについて Cloud Logging にその Message を送ってみました。
+今回はシンプルにすべてのリクエストについて Cloud Logging にその Message を送ってみました。
 用途が決まっている場合は、この Interceptor 内である程度フィルタリングや Message の整形を行うことも可能です。
 
 - 特定の gRPC メソッド（ExecuteSql や ExecuteStreamingSql など）だけ送る
